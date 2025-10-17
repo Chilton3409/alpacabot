@@ -102,37 +102,32 @@ class AlpacaBotLink():
         except Exception as e:
             logging.exception(msg=e)
             
-    async def get_news(self, ticker):
+    async def get_news(self, ticker, limit):
         
         """
         retrieve the news for a single ticker
         """
         try:
-            news = self.api.get_news(symbol=ticker, limit=1, include_content=True, exclude_contentless=True)
-            if news:
-                
-                for content in news:
-                    if content:
-                        #use meta ai to analyze the content
-                        information = content.content
-                        await asyncio.sleep(5.0)    
-                        sentiment_analysis = await self.get_meta_ai_insights(f"analyze this news article to generate buy and sell signals for ticker: {ticker}: {information}. Return Buy or Pass")
-                        await asyncio.sleep(5.0)                 
-                        return sentiment_analysis
-                    else:
-                        return logging.info(f"no news available for: {ticker}")
+            news = self.api.get_news(symbol=ticker, limit=limit, include_content=True, exclude_contentless=True)
+            for content in news:
+                if content:
+                    return content.content
             
         except Exception as e:
             logging.exception(msg=e)
     
             
-    async def get_market_movers(self):
+    async def get_market_movers(self, top):
         """
         returns the latest marker movers
         """
         try:
-            market_movers = self.screener_client.get_market_movers(request_params=MarketMoversRequest(top=30))
+            market_movers = self.screener_client.get_market_movers(request_params=MarketMoversRequest(top=top))
             return market_movers.gainers
+                
+                
+                
+                
 
         except Exception as e:
             logging.error(f"an error occured in the get market movers function: {e}")
@@ -220,9 +215,10 @@ class AlpacaBotLink():
     async def get_candles(self, ticker):
         # Retrieve 1-minute bar data
        
-
-        test = self.api.get_latest_bars(ticker)
-        return test
+        if ticker:
+            
+            test = self.api.get_latest_bars(ticker)
+            return test
         
     
     
