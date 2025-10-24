@@ -24,8 +24,6 @@ async def get_market_movers(top):
     
     return market_movers
 
-
-
 async def sentiment_analysis(news, candles):
     sentiment = await client.get_meta_ai_insights(meta_ai_text=f"Conduct a sentiment analysis on this news: {news} with these candles: {candles}")
     return sentiment
@@ -38,20 +36,30 @@ async def process_data(tickers):
 async def ai_top_picks():
     picks = await client.get_meta_ai_insights(meta_ai_text=f"based on the stocks you have reviewed, what are your top picks? Please only return a python list I need it in a function")
     return picks 
-async def main():
-    movers = await get_market_movers(top=30)
-    for mover in movers:
-        print(mover.symbol)
-        if mover.price >= Decimal('1.00') and mover.price <= Decimal('100.00'):
-            news = await get_news(ticker=mover.symbol, limit=2)
+
+async def buy_logic():
+    try:
         
-            candles = await client.get_candles(ticker=mover.symbol)
-            analysis = await sentiment_analysis(news, candles)  
-            print(analysis)
-    ticker_list = await ai_top_picks()
-    for ticker in ticker_list:
-        #create buy order
-        pass
+        movers = await get_market_movers(top=10)
+        for mover in movers:
+            print(mover.symbol)
+            if mover.price >= Decimal('1.00') and mover.price <= Decimal('10.00'):
+                news = await get_news(ticker=mover.symbol, limit=2)
+            
+                candles = await client.get_candles(ticker=mover.symbol)
+                analysis = await sentiment_analysis(news, candles)  
+                print(analysis)
+        ticker_list = await ai_top_picks()
+        for ticker in ticker_list:
+            #create buy order
+            print(ticker)
+            pass
+    
+    except Exception as e:
+        logging.exception(msg=e)
+        
+async def main():
+   await buy_logic()
     
     
     

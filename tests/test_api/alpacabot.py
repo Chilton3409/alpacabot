@@ -20,18 +20,19 @@ import logging
 import datetime
 from decimal import Decimal
 from meta_ai_api import MetaAI
+import aiofiles
 
 class AlpacaBotLink():
     def __init__(self, api_key, api_secret, paper, access_token):
         #create restclient ref
-        self.trading_client = TradingClient(api_key=api_key, secret_key=api_secret, paper=True)
+        self.trading_client = TradingClient(api_key=api_key, secret_key=api_secret, paper=False)
         self.screener_client = ScreenerClient(api_key=api_key, secret_key=api_secret)
         self.news_client = NewsClient(api_key=api_key, secret_key=api_secret)
         BASE_URL = 'https://api.alpaca.markets'
         self.api = tradeapi.REST(api_key, api_secret, BASE_URL)
         self.today = datetime.date.today().isoformat()
         self.top_gainers = []
-        
+        my_tickers = {}
         self.ai_api = MetaAI(access_token)
         self.ai_api.access_token = os.environ.get("ACCESS_TOKEN")
         
@@ -102,43 +103,28 @@ class AlpacaBotLink():
         except Exception as e:
             logging.exception(msg=e)
             
-    async def get_news(self, ticker, limit):
-        
-        """
-        retrieve the news for a single ticker
-        """
-        try:
-            news = self.api.get_news(symbol=ticker, limit=limit, include_content=True, exclude_contentless=True)
-            for content in news:
-                if content:
-                    return content.content
-            
-        except Exception as e:
-            logging.exception(msg=e)
+    async def get_news(self, ticker):
+        pass
     
             
-    async def get_market_movers(self, top):
+    async def get_market_movers(self):
         """
         returns the latest marker movers
         """
         try:
-            market_movers = self.screener_client.get_market_movers(request_params=MarketMoversRequest(top=top))
+            market_movers = self.screener_client.get_market_movers(request_params=MarketMoversRequest(top=30))
             return market_movers.gainers
-                
-                
-                
-                
 
         except Exception as e:
             logging.error(f"an error occured in the get market movers function: {e}")
     async def create_top_gainer_list(self):
         try:
             #extract
-            test = await self.get_market_movers()
+            market_movers = await self.get_market_movers()
             
-            for t in test:
+            for mover in market_movers:
                 
-                self.top_gainers.append(t.symbol)
+                self.top_gainers.append(mover.symbol)
             
             return
         except Exception as e:
@@ -182,47 +168,48 @@ class AlpacaBotLink():
         except Exception as e:
             logging.error(msg=e)
             
-    async def buy_logic(self):
+    async def buy_logic(self ):
         #first we need to gather the the top gainers
+        
         #pass the top gainers tickers into the top gainers list
-        await self.create_top_gainer_list()
-    
+        
         #get the barset for each ticker and pass it to the machine learning model
-        for ticker in self.top_gainers:
-            candles = await self.get_candles(ticker=ticker)
-            print(candles)
-            news = await self.get_news(ticker=ticker)
-            print(news)
-            #when buy signals are generated, create a limit buy order
-            
-            #then we need to do the same thing for crypto
-            #create a crypto buy_logic cycle
-            
-            #gather the crypto top gainers
-            #store them in the crypto top gainers list
-            #get the barset for each ticker and pass it to the machine learning model
-            #to generate buy signals
-            #then create a buy order when buy signals are generated
-            #then use meta to evaluate the portfolio for potential optimizartions 
-            #acrross different asset classes
-            
+        #when buy signals are generated, create a limit buy order
+        #then we need to do the same thing for crypto
+        #gather the crypto top gainers
+        #store them in the crypto top gainers list
+        #get the barset for each ticker and pass it to the machine learning model
+        #to generate buy signals
+        #then create a buy order when buy signals are generated
+        #then use meta to evaluate the portfolio for potential optimizartions 
+        #acrross different asset classes
+        
         
         
       
         
-        return
+        pass
 
     async def get_candles(self, ticker):
         # Retrieve 1-minute bar data
        
-        if ticker:
+        try:
             
-            test = self.api.get_latest_bars(ticker)
-            return test
+            bars = self.api.get_latest_bars(ticker)
+            return bars
+        except Exception as e:
+            logging.exception(msg=e)
+            
         
     
     
-    async def optimize_portfolio(self):
+    async def optimize_portfolio(self, my_tickers:dict):
+        """
+        use meta ai api to analyze portfolio unrealized gaines and losses
+        for potential dollar cost averaging oppurtunities, and to maximize potential
+        gains within the my tickers dict{symbol:pnl}
+        
+        """
         pass
     
     
@@ -284,6 +271,7 @@ class AlpacaBotLink():
         except Exception as e:
             logging.exception(msg=e)
             return None
+        
     async def close_position(self, ticker):
         try:
             test = self.client.close_position(symbol_or_asset_id=ticker,close_options=[1, 100])
@@ -308,20 +296,34 @@ class AlpacaBotLink():
             return response['message']
         except Exception as e:
             logging.exception(msg=e)
-            return None
+            return logging.info("theres been a problem getting a response from meta")
         
-    
+    async def meta_analyze_candles(self, ticker, candles):
+        """
+        use meta ai api to analyze the 1 min candle charts for a stock
+        """
+        try:
+            insights = await self.get_meta_ai_insights(meta_ai_text=f"generate buy or sell signal for {ticker} with these barsets: {candles}")
+            logging.info(f"gathering insights on ticker: {ticker}")
+            return insights
+        
+        except Exception as e:
+            logging.exception(msg=e)
     
 async def main():
     access_token = os.environ.get("META_AI_TOKEN")
     api_key = os.environ.get("API_KEY")
     api_secret = os.environ.get("API_SECRET")
     client = AlpacaBotLink(api_key, api_secret, paper=True, access_token=access_token)
-    #add the below code to the buy logic cycle
-    await client.buy_logic()
     
-    
-   
+    await client.create_top_gainer_list()
+    for ticker in client.top_gainers:
+        candles = await client.get_candles(ticker)
+        
+        insights = await client.meta_analyze_candles(ticker=ticker, candles=candles)
+        print(insights)
+        await asyncio.sleep(5.00)
+       
     return
 
 if __name__=='__main__':
